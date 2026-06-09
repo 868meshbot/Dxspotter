@@ -1,0 +1,83 @@
+name: PlatformIO Build
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: recursive
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install PlatformIO
+      run: |
+        python -m pip install --upgrade pip
+        pip install platformio esptool
+
+    - name: Cache PlatformIO
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.platformio
+          ~/.piocache
+        key: ${{ runner.os }}-pio-${{ hashFiles('**/platformio.ini') }}
+        restore-keys: |
+          ${{ runner.os }}-pio-
+
+    - name: Build firmware
+      run: |
+        mkdir -p ~/.piocache
+        export PLATFORMIO_BUILD_CACHE_DIR=~/.piocache
+        pio run -e t-deck
+
+    - name: Merge firmware (CI fallback)
+      run: |
+        APP=$(ls firmware/dxspotter-*.bin 2>/dev/null | grep -v merged | head -1)
+        if [ -z "$APP" ]; then echo "No app binary found"; exit 1; fi
+        MERGED="${APP%.bin}-merged.bin"
+        if [ -f "$MERGED" ]; then echo "Merged binary already exists"; exit 0; fi
+        BOOT=.pio/build/t-deck/bootloader.bin
+        PART=.pio/build/t-deck/partitions.bin
+        FW=.pio/build/t-deck/firmware.bin
+        python -m esptool --chip esp32s3 merge_bin \
+          --flash_mode dio --flash_freq 80m --flash_size 16MB \
+          0x0000 "$BOOT" 0x8000 "$PART" 0x10000 "$FW" \
+          -o "$MERGED"
+        echo "Merged → $MERGED"
+
+    - name: List firmware artifacts
+      run: ls -lh firmware/
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: firmware-binaries
+        path: firmware/dxspotter-*.bin
+
+    - name: Create GitHub Release
+      if: startsWith(github.ref, 'refs/tags/')
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release create "${{ github.ref_name }}" \
+          --title "${{ github.ref_name }}" \
+          --generate-notes \
+          firmware/dxspotter-*.bin

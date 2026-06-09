@@ -1,0 +1,30 @@
+# PlatformIO build artefacts
+.pio/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Editor
+.vscode/
+*.swp
+*.swo
+
+# Secrets / credentials
+*.pem
+*.key
+secrets.*
+
+# Firmware / build binaries (built locally and by CI — never committed)
+firmware/
+*.bin
+*.elf
+*.hex
+*.map
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
