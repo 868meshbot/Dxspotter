@@ -89,22 +89,23 @@ def build_firmware_artifacts(source, target, env):
         print("App binary   → firmware/%s.bin" % stem)
 
     # ── Merged binary — flash at 0x0 (first-time flash / full recovery) ──
+    # Pure-Python 0xFF-padded raw splice at the flash offsets — equivalent to
+    # `esptool merge_bin` for this board (the build's bootloader already carries
+    # the correct flash mode/size). Done in-process so it needs no esptool /
+    # pyserial, which PlatformIO's bundled Python lacks (the old esptool shell-out
+    # silently failed locally and only produced the app-only binary).
     if all(os.path.exists(p) for p in (bootloader, partitions, app)):
-        merged  = os.path.join(out_dir, stem + "-merged.bin")
-        esptool = env.subst("$PYTHONEXE") + " -m esptool"
-        cmd = (
-            '%s --chip esp32s3 merge_bin'
-            ' --flash_mode dio --flash_freq 80m --flash_size 16MB'
-            ' 0x0000  "%s"'
-            ' 0x8000  "%s"'
-            ' 0x10000 "%s"'
-            ' -o "%s"'
-        ) % (esptool, bootloader, partitions, app, merged)
-        r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-        if r.returncode == 0:
-            print("Merged binary → firmware/%s-merged.bin" % stem)
-        else:
-            print("esptool merge failed:\n" + r.stderr)
+        merged = os.path.join(out_dir, stem + "-merged.bin")
+        images = [(0x0000, bootloader), (0x8000, partitions), (0x10000, app)]
+        end  = max(off + os.path.getsize(p) for off, p in images)
+        blob = bytearray(b"\xff" * end)
+        for off, p in images:
+            with open(p, "rb") as f:
+                data = f.read()
+            blob[off:off + len(data)] = data
+        with open(merged, "wb") as f:
+            f.write(blob)
+        print("Merged binary → firmware/%s-merged.bin (%d bytes)" % (stem, end))
     else:
         print("Skipping merge — bootloader or partitions not found")
         print("  bootloader : %s" % bootloader)

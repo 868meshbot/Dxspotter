@@ -30,7 +30,7 @@ jobs:
     - name: Install PlatformIO
       run: |
         python -m pip install --upgrade pip
-        pip install platformio esptool
+        pip install platformio
 
     - name: Cache PlatformIO
       uses: actions/cache@v4
@@ -48,23 +48,35 @@ jobs:
         export PLATFORMIO_BUILD_CACHE_DIR=~/.piocache
         pio run -e t-deck
 
-    - name: Merge firmware (CI fallback)
+    - name: Package firmware
+      # Build the named app-only and merged binaries directly from the canonical
+      # build outputs (which always exist after a successful build). The merge is
+      # a pure-Python 0xFF-padded splice — no esptool/pyserial dependency, and no
+      # reliance on the post_build.py post-action having fired.
       run: |
-        APP=$(ls firmware/dxspotter-*.bin 2>/dev/null | grep -v merged | head -1)
-        if [ -z "$APP" ]; then echo "No app binary found"; exit 1; fi
-        MERGED="${APP%.bin}-merged.bin"
-        if [ -f "$MERGED" ]; then echo "Merged binary already exists"; exit 0; fi
-        BOOT=.pio/build/t-deck/bootloader.bin
-        PART=.pio/build/t-deck/partitions.bin
-        FW=.pio/build/t-deck/firmware.bin
-        python -m esptool --chip esp32s3 merge_bin \
-          --flash_mode dio --flash_freq 80m --flash_size 16MB \
-          0x0000 "$BOOT" 0x8000 "$PART" 0x10000 "$FW" \
-          -o "$MERGED"
-        echo "Merged → $MERGED"
-
-    - name: List firmware artifacts
-      run: ls -lh firmware/
+        BD=.pio/build/t-deck
+        test -f "$BD/firmware.bin" || { echo "Build produced no firmware.bin"; exit 1; }
+        VER=$(grep -oE 'DXS_VERSION[[:space:]]+"[^"]+"' src/version.h | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+        [ -n "$VER" ] || VER=0.0.0
+        STEM="dxspotter-t-deck-plus-$VER"
+        mkdir -p firmware
+        cp "$BD/firmware.bin" "firmware/$STEM.bin"
+        python - "$BD" "firmware/$STEM-merged.bin" <<'PY'
+        import sys, os
+        bd, out = sys.argv[1], sys.argv[2]
+        imgs = [(0x0000, bd + "/bootloader.bin"),
+                (0x8000, bd + "/partitions.bin"),
+                (0x10000, bd + "/firmware.bin")]
+        end = max(off + os.path.getsize(p) for off, p in imgs)
+        blob = bytearray(b"\xff" * end)
+        for off, p in imgs:
+            with open(p, "rb") as f:
+                blob[off:off + os.path.getsize(p)] = f.read()
+        with open(out, "wb") as f:
+            f.write(blob)
+        print("merged %d bytes -> %s" % (end, out))
+        PY
+        ls -lh firmware/
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4

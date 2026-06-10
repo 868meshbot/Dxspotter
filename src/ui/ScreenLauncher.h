@@ -43,8 +43,8 @@ private:
     static lv_obj_t* _timeLbl;
     static lv_obj_t* _battLbl;
     static lv_obj_t* _updLbl;
-    static lv_obj_t* _tiles[6];   // 0=DXSpots 1=Solar 2=HamAlert 3=BandMap 4=Settings 5=DXpeditions
-    static int8_t    _selIdx;      // 0-5
+    static lv_obj_t* _tiles[7];   // 0=DXSpots 1=Solar 2=HamAlert 3=BandMap 4=Settings 5=DXpeditions 6=Satellites
+    static int8_t    _selIdx;      // 0-6
 
     static void _buildTopBar   (lv_obj_t* parent);
     static void _buildGrid     (lv_obj_t* parent);

@@ -30,6 +30,7 @@ struct Config {
     char    hamAlertUser[32];       // HamAlert.org username (telnet login name)
     char    hamAlertKey[64];        // HamAlert telnet password (set in HamAlert; NOT the account password)
     char    hamAlertPass[64];       // HamAlert.org account/web password — used by HamAlertApi to log into hamalert.org and manage triggers (add/delete). Separate from the telnet password above.
+    char    hamsatKey[40];          // hams.at API/feed key (UUID) — used by SatFeed for GET /api/alerts/upcoming. Passes are computed for the location saved on the linked hams.at account.
     uint8_t haNotifyBeep;           // 1 = beep on a new HamAlert ("HamAlert Notification")
     uint8_t haNotifyPopup;          // 1 = show a details popup on a new HamAlert
     uint8_t volume;                 // audio output volume 0-255 (beeps, boot chime)
@@ -51,6 +52,7 @@ namespace config {
     void setDXLiteCall(const char* call);
     void setHamAlert(const char* user, const char* key);
     void setHamAlertPass(const char* pass);
+    void setHamsatKey(const char* key);
     void setHamAlertBeep(bool on);
     void setHamAlertPopup(bool on);
     void setVolume(uint8_t v);

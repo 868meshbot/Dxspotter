@@ -14,6 +14,7 @@
 #include "ScreenDXpeditions.h"
 #include "ScreenHamAlert.h"
 #include "ScreenSolar.h"
+#include "ScreenSat.h"
 #include "Theme.h"
 #include "../hardware/Board.h"
 #include "../utils/Config.h"
@@ -25,6 +26,7 @@
 #include "../net/HamAlertFeed.h"
 #include "../net/DXpeditionFeed.h"
 #include "../net/DXWorldFeed.h"
+#include "../net/SatFeed.h"
 
 #include <lvgl.h>
 #include <TFT_eSPI.h>
@@ -437,6 +439,7 @@ void tick() {
     if (SolarFeed::hasNewData())        ScreenSolar::onNewData();
     if (HamAlertFeed::hasNewData())     ScreenHamAlert::onNewData();
     if (DXpeditionFeed::hasNewData())   ScreenDXpeditions::onNewData();
+    if (SatFeed::hasNewData())          ScreenSat::onNewData();
 
     // HamAlert beep/popup notification for genuinely new alerts. The count is
     // baselined a few seconds after the telnet feed starts streaming, so the

@@ -10,9 +10,11 @@
 #include "../utils/Log.h"
 #include "../net/WiFiMgr.h"
 #include "../net/DXFeed.h"
+#include "../net/SatFeed.h"
 #include "../hardware/Board.h"
 
 #include <WiFi.h>
+#include <esp_ota_ops.h>
 #include <cstring>
 #include <cstdio>
 
@@ -35,6 +37,7 @@ enum SettingItem : int {
     SI_HA_USER,
     SI_HA_PASS,
     SI_HA_KEY,
+    SI_HAMSAT_KEY,
     SI_HA_BEEP,
     SI_HA_POPUP,
     SI_VOLUME,
@@ -56,6 +59,7 @@ static const char* kItemLabels[SI_COUNT] = {
     "HamAlert User",
     "HamAlert Password",
     "HamAlert Telnet",
+    "Hams.at Key",
     "HamAlert Notification",
     "Alert Popup",
     "Volume",
@@ -95,6 +99,7 @@ static void _buildValStr(int idx, char* buf, size_t sz) {
     case SI_HA_USER:    strncpy(buf, cfg.hamAlertUser[0]? cfg.hamAlertUser: "(not set)", sz-1); break;
     case SI_HA_PASS:    strncpy(buf, cfg.hamAlertPass[0]? "••••••••"      : "(not set)", sz-1); break;
     case SI_HA_KEY:     strncpy(buf, cfg.hamAlertKey[0] ? "••••••••"      : "(not set)", sz-1); break;
+    case SI_HAMSAT_KEY: strncpy(buf, cfg.hamsatKey[0]   ? "••••••••"      : "(not set)", sz-1); break;
     case SI_HA_BEEP:    strncpy(buf, cfg.haNotifyBeep  ? "On" : "Off", sz-1); break;
     case SI_HA_POPUP:   strncpy(buf, cfg.haNotifyPopup ? "On" : "Off", sz-1); break;
     case SI_VOLUME:
@@ -180,6 +185,16 @@ void ScreenSettings::_buildTopBar(lv_obj_t* parent) {
     lv_obj_set_style_text_font(title, &lv_font_montserrat_14, 0);
 }
 
+// True when DXSpotter is running from ota_1, i.e. a Launcher app occupies ota_0.
+// In that case we offer a "Return to Launcher" row that re-points the boot
+// partition at ota_0 and reboots. (Ported from OpenMeshOS-868 "Launcher Support".)
+static constexpr int SI_RETURN_LAUNCHER = SI_COUNT;  // sentinel index, past the enum
+
+static bool _hasLauncher() {
+    const esp_partition_t* p = esp_ota_get_running_partition();
+    return p && p->subtype == ESP_PARTITION_SUBTYPE_APP_OTA_1;
+}
+
 // ── _buildList() ──────────────────────────────────────────────────────
 void ScreenSettings::_buildList(lv_obj_t* parent) {
     _list = lv_obj_create(parent);
@@ -238,6 +253,36 @@ void ScreenSettings::_buildList(lv_obj_t* parent) {
         lv_obj_set_style_text_align(s_valLbls[i], LV_TEXT_ALIGN_RIGHT, 0);
 
         // Chevron
+        lv_obj_t* arrow = lv_label_create(row);
+        lv_label_set_text(arrow, LV_SYMBOL_RIGHT);
+        lv_obj_set_style_text_color(arrow, theme::TEXT_MUTED, 0);
+        lv_obj_set_style_text_font(arrow, &lv_font_montserrat_10, 0);
+    }
+
+    // Conditional "Return to Launcher" row (only when booted from ota_1).
+    if (_hasLauncher()) {
+        int i = SI_COUNT;
+        lv_obj_t* row = lv_btn_create(_list);
+        lv_group_remove_obj(row);
+        lv_obj_set_size(row, DXS_SCREEN_W, ITEM_H);
+        lv_obj_set_style_bg_color(row, (i & 1) ? theme::BG_CARD : theme::BG, 0);
+        lv_obj_set_style_bg_color(row, theme::PRIMARY, LV_STATE_PRESSED);
+        lv_obj_set_style_border_width(row, 0, 0);
+        lv_obj_set_style_radius(row, 0, 0);
+        lv_obj_set_style_shadow_width(row, 0, 0);
+        lv_obj_set_style_pad_hor(row, 8, 0);
+        lv_obj_set_style_pad_ver(row, 0, 0);
+        lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_add_event_cb(row, _onItemClick, LV_EVENT_CLICKED, (void*)(intptr_t)SI_RETURN_LAUNCHER);
+
+        lv_obj_t* nameLbl = lv_label_create(row);
+        lv_obj_set_flex_grow(nameLbl, 1);
+        lv_label_set_text(nameLbl, LV_SYMBOL_HOME "  Return to Launcher");
+        lv_label_set_long_mode(nameLbl, LV_LABEL_LONG_CLIP);
+        lv_obj_set_style_text_color(nameLbl, theme::ACCENT, 0);
+        lv_obj_set_style_text_font(nameLbl, &lv_font_montserrat_12, 0);
+
         lv_obj_t* arrow = lv_label_create(row);
         lv_label_set_text(arrow, LV_SYMBOL_RIGHT);
         lv_obj_set_style_text_color(arrow, theme::TEXT_MUTED, 0);
@@ -302,6 +347,7 @@ static void _onPopupOK(lv_event_t*) {
     case SI_HA_USER:   config::setHamAlert(text, cfg.hamAlertKey);         break;
     case SI_HA_PASS:   config::setHamAlertPass(text);                      break;
     case SI_HA_KEY:    config::setHamAlert(cfg.hamAlertUser, text);        break;
+    case SI_HAMSAT_KEY: config::setHamsatKey(text); SatFeed::requestFetch(); break;
     default: break;
     }
     _closePopup();
@@ -867,6 +913,7 @@ void ScreenSettings::_onItemClick(lv_event_t* e) {
     case SI_HA_USER:   _showTextPopup(idx, cfg.hamAlertUser, false); break;
     case SI_HA_PASS:   _showTextPopup(idx, "",               true);  break;
     case SI_HA_KEY:    _showTextPopup(idx, "",               true);  break;
+    case SI_HAMSAT_KEY: _showTextPopup(idx, cfg.hamsatKey,   false); break;
     case SI_HA_BEEP:
         config::setHamAlertBeep(!cfg.haNotifyBeep);
         if (config::get().haNotifyBeep) Board::instance().beepNotify();  // test chirp
@@ -896,6 +943,13 @@ void ScreenSettings::_onItemClick(lv_event_t* e) {
         config::setTimezone(tz);
         _refreshList();
         break;
+    }
+    case SI_RETURN_LAUNCHER: {  // re-point boot partition at ota_0 and reboot
+        const esp_partition_t* ota0 = esp_partition_find_first(
+            ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, nullptr);
+        if (ota0 && esp_ota_set_boot_partition(ota0) == ESP_OK)
+            esp_restart();
+        return;
     }
     default: break;
     }

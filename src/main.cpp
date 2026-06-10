@@ -18,6 +18,7 @@
 #include "net/SolarFeed.h"
 #include "net/HamAlertFeed.h"
 #include "net/HamAlertApi.h"
+#include "net/SatFeed.h"
 
 void setup() {
     Serial.begin(115200);
@@ -56,6 +57,7 @@ void setup() {
     dxs::SolarFeed::init();
     dxs::HamAlertFeed::init();
     dxs::HamAlertApi::init();   // HTTPS trigger management (list/add/delete)
+    dxs::SatFeed::init();       // hams.at upcoming satellite passes
 
     DXS_LOG("main", "Ready");
 }

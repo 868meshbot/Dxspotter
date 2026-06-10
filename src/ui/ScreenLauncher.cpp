@@ -9,6 +9,7 @@
 #include "ScreenBandMap.h"
 #include "ScreenSettings.h"
 #include "ScreenDXpeditions.h"
+#include "ScreenSat.h"
 #include "Theme.h"
 #include "../utils/Config.h"
 #include "../utils/Log.h"
@@ -31,18 +32,20 @@ lv_obj_t* ScreenLauncher::_wifiLbl = nullptr;
 lv_obj_t* ScreenLauncher::_timeLbl = nullptr;
 lv_obj_t* ScreenLauncher::_battLbl = nullptr;
 lv_obj_t* ScreenLauncher::_updLbl  = nullptr;
-lv_obj_t* ScreenLauncher::_tiles[6] = {};
+lv_obj_t* ScreenLauncher::_tiles[7] = {};
 int8_t    ScreenLauncher::_selIdx   = 0;
 
 struct TileDesc { const char* symbol; const char* label; };
-static const TileDesc kTiles[6] = {
+static const TileDesc kTiles[7] = {
     { LV_SYMBOL_WIFI,     "DX Spots"     },
     { LV_SYMBOL_IMAGE,    "Solar"        },
     { LV_SYMBOL_CALL,     "HamAlert"     },
     { LV_SYMBOL_LIST,     "Band Map"     },
     { LV_SYMBOL_SETTINGS, "Settings"     },
     { LV_SYMBOL_EDIT,     "DXpeditions"  },
+    { LV_SYMBOL_GPS,      "Satellites"   },
 };
+static constexpr int kTileCount = 7;
 
 // ── show() ────────────────────────────────────────────────────────────
 void ScreenLauncher::show() {
@@ -111,13 +114,13 @@ void ScreenLauncher::_buildTopBar(lv_obj_t* parent) {
     lv_obj_set_style_pad_right(_timeLbl, 2, 0);
 }
 
-// ── _buildGrid() — 3×2 layout ─────────────────────────────────────────
+// ── _buildGrid() — 3×3 layout (7 tiles; last row has one) ─────────────
 void ScreenLauncher::_buildGrid(lv_obj_t* parent) {
     static const lv_coord_t colDsc[] = {
         LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST
     };
     static const lv_coord_t rowDsc[] = {
-        LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST
+        LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST
     };
 
     lv_obj_t* grid = lv_obj_create(parent);
@@ -133,7 +136,7 @@ void ScreenLauncher::_buildGrid(lv_obj_t* parent) {
     lv_obj_set_layout(grid, LV_LAYOUT_GRID);
     lv_obj_set_grid_dsc_array(grid, colDsc, rowDsc);
 
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < kTileCount; i++) {
         int col = i % 3;
         int row = i / 3;
 
@@ -266,7 +269,7 @@ bool ScreenLauncher::isActive() {
 }
 
 void ScreenLauncher::_updateHighlight() {
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < kTileCount; i++) {
         if (!_tiles[i]) continue;
         if (i == _selIdx)
             lv_obj_add_state(_tiles[i], LV_STATE_FOCUSED);
@@ -279,17 +282,20 @@ void ScreenLauncher::navigate(int dx, int dy) {
     if (!_screen) return;
     // Layout:  0 1 2
     //          3 4 5
+    //          6
     int col = _selIdx % 3;
     int row = _selIdx / 3;
     col = (col + dx + 3) % 3;
-    if (dy > 0 && row < 1) row++;
+    if (dy > 0 && row < 2) row++;
     else if (dy < 0 && row > 0) row--;
-    _selIdx = (int8_t)(row * 3 + col);
+    int idx = row * 3 + col;
+    if (idx >= kTileCount) idx = kTileCount - 1;  // clamp into the lone bottom tile
+    _selIdx = (int8_t)idx;
     _updateHighlight();
 }
 
 void ScreenLauncher::confirmSelect() {
-    if (!_screen || _selIdx < 0 || _selIdx > 5) return;
+    if (!_screen || _selIdx < 0 || _selIdx >= kTileCount) return;
     if (_tiles[_selIdx]) lv_event_send(_tiles[_selIdx], LV_EVENT_CLICKED, nullptr);
 }
 
@@ -303,6 +309,7 @@ void ScreenLauncher::_onTileClick(lv_event_t* e) {
         case 3: ScreenBandMap::show();     break;
         case 4: ScreenSettings::show();    break;
         case 5: ScreenDXpeditions::show(); break;
+        case 6: ScreenSat::show();         break;
     }
 }
 

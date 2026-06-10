@@ -40,6 +40,7 @@ void init() {
     s_prefs.getString("haUser",      s_cfg.hamAlertUser, sizeof(s_cfg.hamAlertUser));
     s_prefs.getString("haKey",       s_cfg.hamAlertKey,  sizeof(s_cfg.hamAlertKey));
     s_prefs.getString("haPass",      s_cfg.hamAlertPass, sizeof(s_cfg.hamAlertPass));
+    s_prefs.getString("satKey",      s_cfg.hamsatKey,    sizeof(s_cfg.hamsatKey));
 
     s_cfg.dxFeedSource        = (uint8_t)s_prefs.getUChar("dxFeedSrc",   DX_FEED_DXWATCH);
     s_cfg.haNotifyBeep        = (uint8_t)s_prefs.getUChar("haBeep",      1);
@@ -66,6 +67,7 @@ void save() {
     s_prefs.putString("haUser",    s_cfg.hamAlertUser);
     s_prefs.putString("haKey",     s_cfg.hamAlertKey);
     s_prefs.putString("haPass",    s_cfg.hamAlertPass);
+    s_prefs.putString("satKey",    s_cfg.hamsatKey);
 
     s_prefs.putUChar("dxFeedSrc",  s_cfg.dxFeedSource);
     s_prefs.putUChar("haBeep",     s_cfg.haNotifyBeep);
@@ -125,6 +127,12 @@ void setHamAlert(const char* user, const char* key) {
 void setHamAlertPass(const char* pass) {
     strncpy(s_cfg.hamAlertPass, pass, sizeof(s_cfg.hamAlertPass) - 1);
     s_cfg.hamAlertPass[sizeof(s_cfg.hamAlertPass) - 1] = '\0';
+    save();
+}
+
+void setHamsatKey(const char* key) {
+    strncpy(s_cfg.hamsatKey, key, sizeof(s_cfg.hamsatKey) - 1);
+    s_cfg.hamsatKey[sizeof(s_cfg.hamsatKey) - 1] = '\0';
     save();
 }
 
